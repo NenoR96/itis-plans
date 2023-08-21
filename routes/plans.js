@@ -4,19 +4,27 @@ const router = express.Router();
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
-router.get("/", async (req, res) => {
-  let options = {
-    include: {
-      prices: {
-        include: {
-          price: true,
-          feature: true,
+const includeOptions = {
+  include: {
+    prices: {
+      include: {
+        priceFeature: {
+          include: {
+            price: true,
+            features: {
+              include: {
+                categories: true,
+              },
+            },
+          },
         },
       },
-      categories: true,
     },
-  };
+  },
+};
 
+router.get("/", async (req, res) => {
+  let options = JSON.parse(JSON.stringify(includeOptions));
   const { id, limit, skip } = req.query;
 
   if (id && (limit || skip))
@@ -27,7 +35,10 @@ router.get("/", async (req, res) => {
   skip ? (options.skip = parseInt(skip)) : null;
 
   try {
-    const plans = id ? await prisma.plan.findUnique(options) : await prisma.plan.findMany(options);
+    const plans = id
+      ? await prisma.plan.findUnique(includeOptions)
+      : await prisma.plan.findMany(includeOptions);
+
     res.status(200).send(plans);
   } catch (err) {
     res.status(500).send(err);
@@ -36,56 +47,51 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const data = req.body;
-    console.dir(data, { depth: null });
-    const priceFeatures = data?.prices?.map((priceFeature) => {
+    let { title, prices } = req.body;
+
+    let pricesToCreate = prices.map((price) => {
       return {
-        displayPriority: priceFeature.displayPriority,
-        allowance: priceFeature.allowance,
-        price: {
+        price: price.price,
+        market: price.market,
+        type: price.type,
+        priceFeature: {
           create: {
-            price: priceFeature.price.price,
-            market: priceFeature.price.market,
-            type: priceFeature.price.type,
-          },
-        },
-        feature: {
-          create: {
-            title: priceFeature.feature.title,
+            displayPriority: price.priceFeature.displayPriority,
+            allowance: price.priceFeature.allowance,
+            features: {
+              create: [
+                ...price.priceFeature.features.map((el) => {
+                  return {
+                    title: el.title,
+                    categories: {
+                      create: [
+                        ...el.categories.map((el) => {
+                          return {
+                            title: el.title,
+                          };
+                        }),
+                      ],
+                    },
+                  };
+                }),
+              ],
+            },
           },
         },
       };
     });
-
-    const categories = data?.categories?.map((category) => {
-      return {
-        title: category.title,
-      };
-    });
-
     let createdPlan = await prisma.plan.create({
       data: {
-        title: data.title,
+        title: title,
         prices: {
-          create: priceFeatures,
-        },
-        categories: {
-          create: categories,
+          create: pricesToCreate,
         },
       },
-      include: {
-        prices: {
-          include: {
-            price: true,
-            feature: true,
-          },
-        },
-        categories: true,
-      },
+      ...includeOptions,
     });
     res.status(200).send(createdPlan);
   } catch (err) {
-    res.status(500).send(err);
+    console.error(err);
   }
 });
 
@@ -99,6 +105,7 @@ router.put("/", async (req, res) => {
       data: {
         title: title,
       },
+      ...includeOptions
     });
     res.status(200).send(updatedPlan);
   } catch (err) {

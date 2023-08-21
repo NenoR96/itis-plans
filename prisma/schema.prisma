@@ -11,40 +11,41 @@ datasource db {
 }
 
 model Plan {
-  id         Int            @id @default(autoincrement())
-  title      String         @db.VarChar(50)
-  prices     PriceFeature[] 
-  categories Category[]
+  id     Int     @id @default(autoincrement())
+  title  String  @db.VarChar(50)
+  prices Price[]
 }
 
 model Price {
-  id           Int           @id @default(autoincrement())
-  price        Int
-  market       String
-  type         String
-  PriceFeature PriceFeature?
+  id             Int          @id @default(autoincrement())
+  price          Int
+  market         String
+  type           String
+  plan           Plan         @relation(fields: [planId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  planId         Int
+  priceFeature   PriceFeature @relation(fields: [priceFeatureId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  priceFeatureId Int          @unique
 }
 
 model PriceFeature {
-  id              Int     @id @default(autoincrement())
+  id              Int       @id @default(autoincrement())
   displayPriority Int
   allowance       Int
-  price           Price   @relation(fields: [priceId], references: [id])
-  priceId         Int     @unique
-  feature         Feature @relation(fields: [featureId], references: [id])
-  featureId       Int     @unique
-  plan            Plan    @relation(fields: [planId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  planId          Int
+  price           Price?
+  features        Feature[]
 }
 
 model Feature {
-  id           Int           @id @default(autoincrement())
-  title        String        @db.VarChar(50)
-  PriceFeature PriceFeature?
+  id             Int          @id @default(autoincrement())
+  title          String       @db.VarChar(50)
+  priceFeature   PriceFeature @relation(fields: [priceFeatureId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  priceFeatureId Int          @unique
+  categories     Category[]
 }
 
 model Category {
-  id    Int    @id @default(autoincrement())
-  title String @db.VarChar(50)
-  plans Plan[]
+  id        Int     @id @default(autoincrement())
+  title     String  @db.VarChar(50)
+  feature   Feature @relation(fields: [featureId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  featureId Int
 }

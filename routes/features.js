@@ -4,27 +4,28 @@ const router = express.Router();
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
+const includeOptions = {
+  include: {
+    priceFeature: {
+      select: {
+        allowance: true,
+        price: {
+          select: {
+            plan: true,
+          },
+        },
+      },
+    },
+  },
+};
+
 router.get("/", async (req, res) => {
   const { id, limit, skip } = req.query;
 
   if (id && (limit || skip))
     return res.status(400).send("Cannot use id parameter with skip & limit");
 
-  let options = {
-    select: {
-      id: true,
-      displayPriority: true,
-      allowance: true,
-      plan: true,
-      feature: {
-        select: {
-          id: true,
-          title: true,
-        },
-      },
-      price: true,
-    },
-  };
+  let options = JSON.parse(JSON.stringify(includeOptions));
 
   id ? (options.where = { id: parseInt(id) }) : null;
   limit ? (options.take = parseInt(limit)) : null;
@@ -32,8 +33,8 @@ router.get("/", async (req, res) => {
 
   try {
     const priceFeatures = id
-      ? await prisma.priceFeature.findUnique(options)
-      : await prisma.priceFeature.findMany(options);
+      ? await prisma.feature.findUnique(options)
+      : await prisma.feature.findMany(options);
     res.status(200).send(priceFeatures);
   } catch (err) {
     res.status(500).send(err);
@@ -49,25 +50,20 @@ router.post("/search", async (req, res) => {
     !Number.isInteger(skip)
   )
     return res.status(400).send("Need to provide all parameters");
+
   let options = {
     where: {
-      feature: {
-        title: {
-          contains: text,
-          mode: "insensitive",
-        },
+      title: {
+        contains: text,
+        mode: "insensitive",
       },
     },
-    include: {
-      plan: true,
-      price: true,
-      feature: true,
-    },
+    ...includeOptions,
     take: limit,
     skip,
   };
   try {
-    const priceFeatures = await prisma.priceFeature.findMany(options);
+    const priceFeatures = await prisma.feature.findMany(options);
     res.status(200).send(priceFeatures);
   } catch (err) {
     res.status(500).send(err);
